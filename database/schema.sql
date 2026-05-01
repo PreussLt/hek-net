@@ -1,0 +1,47 @@
+CREATE TABLE IF NOT EXISTS hardware (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL,
+    IP TEXT,
+    Hersteller TEXT,
+    icon_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (icon_id) REFERENCES master_icons(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS master_icons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    url TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hardware_tags (
+    hardware_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    PRIMARY KEY (hardware_id, tag_id),
+    FOREIGN KEY (hardware_id) REFERENCES hardware(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS statuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hardware_id INTEGER NOT NULL,
+    status_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    port INTEGER,
+    protocol TEXT,
+    FOREIGN KEY (hardware_id) REFERENCES hardware(id) ON DELETE CASCADE,
+    FOREIGN KEY (status_id) REFERENCES statuses(id) ON DELETE RESTRICT
+);

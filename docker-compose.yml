@@ -1,0 +1,26 @@
+services:
+  frontend:
+    image: php:8.2-apache
+    container_name: hek-net-frontend
+    env_file: .env
+    ports:
+      - "${FRONTEND_PORT:-8000}:80"
+    volumes:
+      # Mountet den Frontend-Ordner in den Web-Root des Containers
+      - ./frontend:/var/www/html
+      # Mounte die .env Datei, damit PHP sie direkt parsen kann
+      - ./.env:/var/www/html/.env
+      # Mounte den Datenbank-Ordner (für SQLite und Schema)
+      - ./database:/var/www/database
+    restart: unless-stopped
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: hek-net-s3
+    env_file: .env
+    ports:
+      - "${S3_CONSOLE_PORT:-9001}:9001"
+      - "${S3_API_PORT:-9000}:9000"
+    volumes:
+      - ./s3_data:/data
+    restart: unless-stopped
