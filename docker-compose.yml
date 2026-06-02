@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: php:8.2-apache
+    build: ./frontend
     container_name: hek-net-frontend
     env_file: .env
     ports:
@@ -12,6 +12,25 @@ services:
       - ./.env:/var/www/html/.env
       # Mounte den Datenbank-Ordner (für SQLite und Schema)
       - ./database:/var/www/database
+      # Mounte den Docker-Socket, um Docker-API-Aufrufe zu ermöglichen
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - db
+      - rustfs
+    restart: unless-stopped
+
+  db:
+    image: mariadb:latest
+    container_name: hek-net-db
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-hek_net}
+      MYSQL_USER: ${DB_USER:-hek_user}
+      MYSQL_PASSWORD: ${DB_PASS:-hek_pass}
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     restart: unless-stopped
 
   rustfs:

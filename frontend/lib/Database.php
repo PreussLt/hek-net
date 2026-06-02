@@ -3,59 +3,48 @@ class Database {
     private $pdo;
 
     public function __construct() {
-        // Der neue Datenbank-Ordner ist nun über Docker unter /var/www/database gemountet
-        $dataDir = '/var/www/database';
-        
-        if (!is_dir($dataDir)) {
-            mkdir($dataDir, 0777, true);
-        }
+        $host = getenv('DB_HOST') ?: 'db';
+        $db   = getenv('DB_NAME') ?: 'hek_net';
+        $user = getenv('DB_USER') ?: 'hek_user';
+        $pass = getenv('DB_PASS') ?: 'hek_pass';
+        $charset = 'utf8mb4';
 
-        $dbFile = $dataDir . '/database.sqlite';
-        $isNew = !file_exists($dbFile);
+        $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+        $options = [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ];
 
         try {
-            $this->pdo = new PDO('sqlite:' . $dbFile);
-            $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-
-            // Wichtig für ON DELETE CASCADE und Foreign Keys
-            $this->pdo->exec('PRAGMA foreign_keys = ON;');
-
-            if ($isNew) {
-                $this->initDb();
-            }
+            $this->pdo = new PDO($dsn, $user, $pass, $options);
+            $this->checkInit();
         } catch (PDOException $e) {
             die("Datenbankverbindung fehlgeschlagen: " . $e->getMessage());
         }
     }
 
-    private function initDb() {
-        // Das Schema wird nun direkt aus der SQL-Struktur-Datei geladen
-        $schemaFile = '/var/www/database/schema.sql';
-        if (file_exists($schemaFile)) {
-            $sql = file_get_contents($schemaFile);
-            $this->pdo->exec($sql);
-
-            // Standard-Status anlegen, falls die Tabelle noch leer ist
-            $stmt = $this->pdo->query("SELECT COUNT(*) FROM statuses");
-            if ($stmt->fetchColumn() == 0) {
-                $this->pdo->exec("
-                    INSERT INTO statuses (id, name, color) VALUES 
-                    (1, 'Online', 'success'),
-                    (2, 'Offline', 'danger'),
-                    (3, 'Wartung', 'warning'),
-                    (4, 'Unbekannt', 'muted');
-                ");
-            }
+    private function checkInit() {
+        // Standard-Status anlegen, falls die Tabelle noch leer ist
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM statuses");
+        if ($stmt->fetchColumn() == 0) {
+            $this->pdo->exec("
+                INSERT INTO statuses (id, name, color) VALUES 
+                (1, 'Online', 'success'),
+                (2, 'Offline', 'danger'),
+                (3, 'Wartung', 'warning'),
+                (4, 'Unbekannt', 'muted');
+            ");
         }
     }
 
     public function getRecords() {
-        // Lese alle Hardware-Geräte inkl. Icon-URL
+        // Lese alle Hardware-Geräte inkl. Icon-URL und Parent-Info
         $stmt = $this->pdo->query("
-            SELECT h.*, mi.url as icon_url 
+            SELECT h.*, mi.url as icon_url, p.Name as parent_name
             FROM hardware h 
             LEFT JOIN master_icons mi ON h.icon_id = mi.id 
+            LEFT JOIN hardware p ON h.parent_id = p.id
             ORDER BY h.id DESC
         ");
         $hardwareList = $stmt->fetchAll();
@@ -75,11 +64,9 @@ class Database {
         ");
 
         foreach ($hardwareList as &$hw) {
-            // Services
             $stmtSvc->execute([$hw['id']]);
             $hw['ServicesList'] = $stmtSvc->fetchAll();
 
-            // Tags
             $stmtTags->execute([$hw['id']]);
             $hw['TagsList'] = $stmtTags->fetchAll();
         }
@@ -90,19 +77,19 @@ class Database {
     public function createRecord($data) {
         $this->pdo->beginTransaction();
         try {
-            // Gerät anlegen
-            $sql = "INSERT INTO hardware (Name, IP, Hersteller, icon_id) VALUES (:name, :ip, :hersteller, :icon_id)";
+            $sql = "INSERT INTO hardware (Name, IP, Hersteller, icon_id, parent_id, notes) VALUES (:name, :ip, :hersteller, :icon_id, :parent_id, :notes)";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([
                 ':name' => $data['Name'] ?? '',
                 ':ip' => $data['IP'] ?? '',
                 ':hersteller' => $data['Hersteller'] ?? '',
-                ':icon_id' => $data['icon_id'] ?? null
+                ':icon_id' => $data['icon_id'] ?? null,
+                ':parent_id' => $data['parent_id'] ?? null,
+                ':notes' => $data['notes'] ?? ''
             ]);
             
             $hardwareId = $this->pdo->lastInsertId();
 
-            // Services speichern
             if (!empty($data['Services']) && is_array($data['Services'])) {
                 $sqlSvc = "INSERT INTO services (hardware_id, status_id, name, port) VALUES (?, 4, ?, ?)";
                 $stmtSvc = $this->pdo->prepare($sqlSvc);
@@ -115,7 +102,6 @@ class Database {
                 }
             }
 
-            // Tags speichern
             if (!empty($data['Tags']) && is_array($data['Tags'])) {
                 $sqlTag = "INSERT INTO hardware_tags (hardware_id, tag_id) VALUES (?, ?)";
                 $stmtTag = $this->pdo->prepare($sqlTag);
@@ -125,11 +111,27 @@ class Database {
             }
 
             $this->pdo->commit();
-            return true;
+            return $hardwareId;
         } catch (Exception $e) {
             $this->pdo->rollBack();
             return false;
         }
+    }
+
+    public function updateNotes($id, $notes) {
+        $stmt = $this->pdo->prepare("UPDATE hardware SET notes = ? WHERE id = ?");
+        return $stmt->execute([$notes, $id]);
+    }
+
+    public function addHardwareFile($hwId, $name, $url, $type) {
+        $stmt = $this->pdo->prepare("INSERT INTO hardware_files (hardware_id, name, url, file_type) VALUES (?, ?, ?, ?)");
+        return $stmt->execute([$hwId, $name, $url, $type]);
+    }
+
+    public function getHardwareFiles($hwId) {
+        $stmt = $this->pdo->prepare("SELECT * FROM hardware_files WHERE hardware_id = ? ORDER BY created_at DESC");
+        $stmt->execute([$hwId]);
+        return $stmt->fetchAll();
     }
 
     // === Stammdaten Methoden ===

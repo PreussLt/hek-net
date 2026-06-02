@@ -40,6 +40,7 @@ include 'header.php';
                 <th>IP Adresse</th>
                 <th>Hersteller</th>
                 <th>Services</th>
+                <th style="text-align: right;">Aktionen</th>
             </tr>
         </thead>
         <tbody>
@@ -100,6 +101,11 @@ include 'header.php';
                             <span style="color: var(--text-muted);">-</span>
                         <?php endif; ?>
                     </td>
+                    <td>
+                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <a href="details.php?id=<?php echo $record['id']; ?>" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;">Doku</a>
+                        </div>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -129,6 +135,16 @@ include 'header.php';
             <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="font-size: 14px; font-weight: 500; color: var(--text-muted);">Hersteller</label>
                 <input type="text" name="hersteller" placeholder="Cisco, Ubiquiti, etc." style="padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.8); font-family: 'Inter', sans-serif;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-size: 14px; font-weight: 500; color: var(--text-muted);">Verbunden mit (Parent)</label>
+                <select name="parent_id" style="padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.8);">
+                    <option value="">-- Direktverbindung / Root --</option>
+                    <?php foreach ($records as $hw): ?>
+                        <option value="<?php echo $hw['id']; ?>"><?php echo htmlspecialchars($hw['Name']); ?> (<?php echo htmlspecialchars($hw['IP']); ?>)</option>
+                    <?php endforeach; ?>
+                </select>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 6px;">

@@ -20,12 +20,24 @@
                 </div>
                 <nav class="main-nav">
                     <ul>
-                        <li><a href="index.php" class="active">Dashboard</a></li>
-                        <li><a href="hardware.php">Hardware</a></li>
-                        <li><a href="stammdaten.php">Stammdaten</a></li>
-                        <li><a href="#">Services</a></li>
-                        <li><a href="#">Dokumentation</a></li>
-                        <li><a href="#">Einstellungen</a></li>
+                        <?php 
+                        $current_page = basename($_SERVER['PHP_SELF']); 
+                        $nav_items = [
+                            'index.php' => 'Dashboard',
+                            'hardware.php' => 'Hardware',
+                            'docker.php' => 'Docker',
+                            'stammdaten.php' => 'Stammdaten',
+                            'scanner.php' => 'Scanner',
+                            'topology.php' => 'Topologie',
+                            '#' => 'Services',
+                            '##' => 'Dokumentation',
+                            '###' => 'Einstellungen'
+                        ];
+                        foreach ($nav_items as $url => $label): 
+                            $active = ($current_page == $url) ? 'active' : '';
+                        ?>
+                            <li><a href="<?php echo $url; ?>" class="<?php echo $active; ?>"><?php echo $label; ?></a></li>
+                        <?php endforeach; ?>
                     </ul>
                 </nav>
             </div>

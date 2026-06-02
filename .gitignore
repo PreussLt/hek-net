@@ -1,3 +1,9 @@
 # Ignoriere die Projektanforderungen
 .requirements.md
 .requirments
+
+# Lokale Konfiguration und Datenbanken
+.env
+database/database.sqlite
+mysql_data/
+s3_data/
